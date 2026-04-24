@@ -1,99 +1,63 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as https from 'https';
 import { Command } from 'commander';
 import FormData from 'form-data';
 import fetch from 'node-fetch';
 
-class DiscordWebhookThreadSender {
-  private webhook: string;
-  private threadId: string;
-  private tagUserId?: string;
-  private message?: string;
-  private fileContent?: string;
-  private skipSsl: boolean;
+const DEFAULT_MESSAGE_TEMPLATE = "Discord Webhook 訊息\n時間: {timestamp}\n狀態: 已發送";
 
-  private static readonly DEFAULT_MESSAGE_TEMPLATE = 
-    "Discord Webhook 訊息\n時間: {timestamp}\n狀態: 已發送";
+interface SendOptions {
+  tagUserId?: string;
+  message?: string;
+  fileContent?: string;
+  skipSsl?: boolean;
+}
 
-  constructor(webhook: string, threadId: string, options: Partial<{
-    tagUserId: string;
-    message: string;
-    fileContent: string;
-    skipSsl: boolean;
-  }> = {}) {
-    this.webhook = webhook;
-    this.threadId = threadId;
-    this.tagUserId = options.tagUserId;
-    this.message = options.message;
-    this.fileContent = options.fileContent;
-    this.skipSsl = options.skipSsl ?? true;
-  }
+async function sendWebhook(webhook: string, threadId: string, options: SendOptions = {}): Promise<void> {
+  const { tagUserId, message, fileContent, skipSsl = true } = options;
+  const fileHandles: fs.ReadStream[] = [];
 
-  public async send(): Promise<boolean> {
-    let fileHandles: fs.ReadStream[] = [];
-
-    try {
-      const url = `${this.webhook}?thread_id=${this.threadId}`;
-      const content = this.buildMessageContent();
-
-      const formData = new FormData();
-      formData.append('content', content);
-
-      if (this.fileContent) {
-        const filePaths = this.fileContent.split(',').map(f => f.trim());
-        for (const filePath of filePaths) {
-          if (fs.existsSync(filePath)) {
-            const fileHandle = fs.createReadStream(filePath);
-            fileHandles.push(fileHandle);
-            formData.append('file', fileHandle, {
-              filename: path.basename(filePath)
-            });
-          }
-        }
-      }
-
-      const response = await fetch(url, {
-        method: 'POST',
-        body: formData,
-        agent: this.skipSsl ? new (require('https').Agent)({ rejectUnauthorized: false }) : undefined
-      });
-
-      const statusCode = response.status;
-
-      if (statusCode >= 200 && statusCode < 300) {
-        console.log('[SUCCESS] 訊息已成功發送到 Discord Thread');
-        return true;
-      }
-
-      console.log(`[ERROR] Discord 返回狀態碼: ${statusCode}`);
-      return false;
-    } catch (error: any) {
-      console.log(`[ERROR] 發送失敗: ${error.message}`);
-      throw error;
-    } finally {
-      for (const fileHandle of fileHandles) {
-        if (!fileHandle.destroyed) {
-          fileHandle.destroy();
-        }
-      }
-    }
-  }
-
-  private buildMessageContent(): string {
-    const messageContent = this.message || this.getDefaultMessage();
-    
-    if (this.tagUserId) {
-      return `<@${this.tagUserId}> ${messageContent}`;
-    }
-    
-    return messageContent;
-  }
-
-  private getDefaultMessage(): string {
-    return DiscordWebhookThreadSender.DEFAULT_MESSAGE_TEMPLATE.replace(
+  try {
+    const url = `${webhook}?thread_id=${threadId}`;
+    const messageContent = message ?? DEFAULT_MESSAGE_TEMPLATE.replace(
       '{timestamp}',
       new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })
     );
+    const content = tagUserId ? `<@${tagUserId}> ${messageContent}` : messageContent;
+
+    const formData = new FormData();
+    formData.append('content', content);
+
+    if (fileContent) {
+      for (const filePath of fileContent.split(',').map(f => f.trim())) {
+        if (fs.existsSync(filePath)) {
+          const fileHandle = fs.createReadStream(filePath);
+          fileHandles.push(fileHandle);
+          formData.append('file', fileHandle, { filename: path.basename(filePath) });
+        }
+      }
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      body: formData,
+      agent: skipSsl ? new https.Agent({ rejectUnauthorized: false }) : undefined
+    });
+
+    if (response.status >= 200 && response.status < 300) {
+      console.log('[SUCCESS] 訊息已成功發送到 Discord Thread');
+    } else {
+      console.log(`[ERROR] Discord 返回狀態碼: ${response.status}`);
+      process.exit(1);
+    }
+  } catch (error: any) {
+    console.log(`[ERROR] 發送失敗: ${error.message}`);
+    throw error;
+  } finally {
+    for (const fh of fileHandles) {
+      if (!fh.destroyed) fh.destroy();
+    }
   }
 }
 
@@ -103,24 +67,19 @@ program
   .name('discord-webhook')
   .description('發送訊息到 Discord Thread')
   .version('1.0.0')
-  .requiredOption('--webhook <url>', 'Discord webhook URL')
-  .requiredOption('--thread-id <id>', 'Discord thread ID')
-  .option('--tag-user-id <id>', '要 Tag 的使用者 ID')
-  .option('--message <content>', '自訂訊息內容')
-  .option('--file-content <path>', '檔案路徑（多檔案用逗號分隔）')
+  .requiredOption('--webhook <url>', 'Discord webhook URL', process.env.DISCORD_WEBHOOK)
+  .requiredOption('--thread-id <id>', 'Discord thread ID', process.env.DISCORD_THREAD_ID)
+  .option('--tag-user-id <id>', '要 Tag 的使用者 ID', process.env.DISCORD_TAG_USER_ID)
+  .option('--message <content>', '自訂訊息內容', process.env.DISCORD_MESSAGE)
+  .option('--file-content <path>', '檔案路徑（多檔案用逗號分隔）', process.env.DISCORD_FILE_CONTENT)
   .option('--skip-ssl', '略過 SSL 驗證')
   .action(async (options) => {
-    const sender = new DiscordWebhookThreadSender(
-      options.webhook,
-      options.threadId,
-      {
-        tagUserId: options.tagUserId,
-        message: options.message,
-        fileContent: options.fileContent,
-        skipSsl: options.skipSsl
-      }
-    );
-    await sender.send();
+    await sendWebhook(options.webhook, options.threadId, {
+      tagUserId: options.tagUserId,
+      message: options.message,
+      fileContent: options.fileContent,
+      skipSsl: options.skipSsl
+    });
   });
 
 program.parse();

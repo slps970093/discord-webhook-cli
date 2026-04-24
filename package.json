@@ -1,7 +1,6 @@
 {
   "name": "discord-webhook-cli",
   "version": "1.0.0",
-  "type": "module",
   "author": "Chou Yu-Hsien",
   "bin": {
     "discord-webhook": "./dist/index.js"
@@ -22,10 +21,5 @@
     "@types/node": "^20.0.0",
     "pkg": "^5.8.1",
     "typescript": "^5.0.0"
-  },
-  "pkg": {
-    "assets": [
-      "node_modules/**/*"
-    ]
   }
 }
