@@ -13,10 +13,10 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 18
 
@@ -30,7 +30,7 @@ jobs:
         run: npm run build:${{ matrix.os == 'ubuntu-latest' && 'linux' || matrix.os == 'windows-latest' && 'win' || 'mac' }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: discord-webhook-${{ matrix.os }}
           path: dist/discord-webhook${{ matrix.os == 'windows-latest' && '.exe' || '' }}
@@ -41,14 +41,14 @@ jobs:
 
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: dist
           pattern: discord-webhook-*
           merge-multiple: false
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/discord-webhook-ubuntu-latest/discord-webhook
