@@ -1,0 +1,31 @@
+{
+  "name": "discord-webhook-cli",
+  "version": "1.0.0",
+  "type": "module",
+  "author": "Chou Yu-Hsien",
+  "bin": {
+    "discord-webhook": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "build:win": "tsc && pkg dist/index.js --targets node18-win-x64 --output dist/discord-webhook.exe",
+    "build:linux": "tsc && pkg dist/index.js --targets node18-linux-x64 --output dist/discord-webhook",
+    "build:mac": "tsc && pkg dist/index.js --targets node18-macos-x64 --output dist/discord-webhook"
+  },
+  "dependencies": {
+    "commander": "^11.0.0",
+    "form-data": "^4.0.0",
+    "node-fetch": "^3.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "pkg": "^5.8.1",
+    "typescript": "^5.0.0"
+  },
+  "pkg": {
+    "assets": [
+      "node_modules/**/*"
+    ]
+  }
+}
