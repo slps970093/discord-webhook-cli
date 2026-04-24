@@ -30,13 +30,16 @@ async function sendWebhook(webhook: string, threadId: string, options: SendOptio
     formData.append('content', content);
 
     if (fileContent) {
-      for (const filePath of fileContent.split(',').map(f => f.trim())) {
-        if (fs.existsSync(filePath)) {
-          const fileHandle = fs.createReadStream(filePath);
-          fileHandles.push(fileHandle);
-          formData.append('file', fileHandle, { filename: path.basename(filePath) });
+      const filePaths = fileContent.split(',').map(f => f.trim());
+      filePaths.forEach((filePath, index) => {
+        console.log(`[DEBUG] 嘗試附加檔案: "${filePath}", 存在: ${fs.existsSync(filePath)}`);
+        if (!fs.existsSync(filePath)) {
+          throw new Error(`檔案不存在: ${filePath}`);
         }
-      }
+        const fileHandle = fs.createReadStream(filePath);
+        fileHandles.push(fileHandle);
+        formData.append(`files[${index}]`, fileHandle, { filename: path.basename(filePath) });
+      });
     }
 
     const response = await fetch(url, {
